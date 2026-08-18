@@ -5,15 +5,20 @@ import { toast } from "sonner";
 import { setPdfState, updatePdfItems, usePdfState } from "@/lib/pdf-to-png-store";
 import { readPdfFiles } from "@/lib/pdf-to-png";
 import {
-  convertPdfPagesToWord,
   DEFAULT_WORD_MARGINS,
-  type OcrMode,
   type OcrProgress,
   type WordFormat,
   type WordMargins,
 } from "@/lib/pdf-to-word";
+import {
+  buildPdfToWordPayload,
+  submitPdfToWordConversion,
+  type ConversionStage,
+  type OcrLanguage,
+} from "@/lib/pdf-to-word-request";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
-import { OcrModeSelect } from "@/components/tools/OcrModeSelect";
+import { OcrOptions } from "@/components/tools/OcrOptions";
+import { ConversionSteps } from "@/components/tools/ConversionSteps";
 
 import {
   DropdownMenu,
@@ -37,11 +42,14 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const state = usePdfState(pageId);
   const [busy, setBusy] = useState(false);
   const [format, setFormat] = useState<WordFormat>("docx");
-  const [mode, setMode] = useState<OcrMode>("image");
+  const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("en");
   const [, setProgress] = useState<OcrProgress | null>(null);
+  const [stage, setStage] = useState<ConversionStage | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
   const [marginKey, setMarginKey] = useState<MarginKey | null>(null);
   const selected = state.items.filter((i) => i.selected);
+
 
 
   const onFiles = async (files: File[]) => {
