@@ -35,7 +35,6 @@ export type PdfPageItem = {
   sourceName?: string;
 };
 
-
 export type PdfPageState = {
   items: PdfPageItem[];
   converted: { url: string; size: number; filename: string } | null;
