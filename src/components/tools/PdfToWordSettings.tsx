@@ -141,18 +141,23 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         </button>
       </FileSourceMenu>
 
-      <OcrModeSelect value={mode} onChange={setMode} target="Word" />
-
+      <OcrOptions
+        enabled={ocrEnabled}
+        onEnabledChange={setOcrEnabled}
+        language={ocrLanguage}
+        onLanguageChange={setOcrLanguage}
+      />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className={triggerClass}>
-            <span>Word Format: {format.toUpperCase()}</span>
+            <span>Word Format: {(ocrEnabled ? "docx" : format).toUpperCase()}</span>
             <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {FORMATS.filter((f) => mode !== "ocr" || f === "docx").map((f) => (
+          {FORMATS.filter((f) => !ocrEnabled || f === "docx").map((f) => (
+
             <DropdownMenuItem key={f} onClick={() => setFormat(f)}>
               {f.toUpperCase()}
             </DropdownMenuItem>
