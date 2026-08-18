@@ -29,8 +29,11 @@ export type PdfPageItem = {
   selected: boolean;
   /** Selectable text of the source page (empty for scanned PDFs). */
   text?: PdfTextSpan[];
+  /** The original uploaded PDF this page came from (used by the remote converter). */
+  source?: Blob;
+  /** Original PDF file name, e.g. "form.pdf". */
+  sourceName?: string;
 };
-
 
 export type PdfPageState = {
   items: PdfPageItem[];

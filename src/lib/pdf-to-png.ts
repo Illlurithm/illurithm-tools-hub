@@ -120,9 +120,10 @@ export async function readPdfFiles(files: FileList | File[]): Promise<PdfPageIte
         rotation: 0,
         selected: true,
         text,
+        source: file,
+        sourceName: file.name,
       });
     }
-
   }
 
   return out;
@@ -183,7 +184,6 @@ export async function convertPdfPagesToPng(
   const blob = await zip.generateAsync({ type: "blob" });
   return { blob, filename: `${baseName || "pages"}.zip` };
 }
-
 
 /**
  * True when an extracted run cannot be trusted as real Unicode text. Subset fonts
