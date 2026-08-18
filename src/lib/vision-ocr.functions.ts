@@ -13,6 +13,9 @@ const blockSchema = z.object({
   align: z.enum(["left", "center", "right"]).default("left"),
   script: z.enum(["latin", "devanagari", "mixed"]).default("latin"),
   label: z.string().default("other"),
+  bg_color: z.string().default(""),
+  text_color: z.string().default(""),
+  bordered: z.coerce.boolean().default(false),
 });
 
 const ruleSchema = z.object({
@@ -43,7 +46,7 @@ const MODEL = "google/gemini-2.5-flash";
 const SYSTEM = `You are a high-accuracy document layout OCR engine for scanned documents, government forms and bilingual identity cards (Aadhaar, PAN, voter ID, driving licence).
 
 Return ONLY minified JSON matching:
-{"blocks":[{"type":"text","x":0,"y":0,"w":0,"h":0,"text":"","font_size_pt":10,"bold":false,"align":"left","script":"latin"},{"type":"image","x":0,"y":0,"w":0,"h":0,"label":"photo"}],"rules":[{"x":0,"y":0,"w":1,"orientation":"horizontal"}]}
+{"blocks":[{"type":"text","x":0,"y":0,"w":0,"h":0,"text":"","font_size_pt":10,"bold":false,"align":"left","script":"latin","bg_color":"","text_color":"","bordered":false},{"type":"image","x":0,"y":0,"w":0,"h":0,"label":"photo"}],"rules":[{"x":0,"y":0,"w":1,"orientation":"horizontal"}]}
 
 Rules:
 - x,y,w,h are normalized 0..1 fractions of the page image (x,y = top-left of the box).
@@ -53,6 +56,10 @@ Rules:
 - font_size_pt: estimate the printed size (typically 7-22). bold: true only for visibly heavier text. align: text alignment inside its own box.
 - script: "devanagari" if the text contains Devanagari, "mixed" if it mixes scripts, else "latin".
 - Emit an "image" block for each non-text visual element: portrait photograph (label "photo"), state emblem/national emblem ("emblem"), logo ("logo"), QR code ("qr"), barcode ("barcode"), signature ("signature"). Bounding box must tightly enclose it.
+- bg_color: hex fill of the cell/band behind the text when it is shaded (e.g. "#4A4A4A" for dark grey section header bands, "#D9D9D9" for light grey). Empty string when the background is white.
+- text_color: hex colour of the printed text when it is not near-black (e.g. "#FFFFFF" on dark bands). Empty string otherwise.
+- bordered: true when the text sits inside a printed rectangular box / table cell of a form grid.
+- Treat each form section (e.g. "CET-CELL APPLICATION DETAILS", "NEET-UG DETAILS", "MARKS") as a table: emit one block per cell, keep label and value as separate side-by-side blocks, and give full-width section headings a box spanning the whole table width.
 - rules: horizontal or vertical printed lines / table grid lines. Omit if none.
 - No commentary, no markdown fences.`;
 

@@ -18,6 +18,12 @@ export type VisionTextBlock = {
   bold: boolean;
   align: VisionAlign;
   script: "latin" | "devanagari" | "mixed";
+  /** Cell background fill as a hex colour (e.g. "#4A4A4A") when the source cell is shaded. */
+  bg_color?: string;
+  /** Text colour as a hex colour when it is not near-black. */
+  text_color?: string;
+  /** True when the source text sits inside a printed rectangular form cell. */
+  bordered?: boolean;
 };
 
 export type VisionImageBlock = {
