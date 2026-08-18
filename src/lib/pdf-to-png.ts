@@ -120,6 +120,8 @@ export async function readPdfFiles(files: FileList | File[]): Promise<PdfPageIte
         rotation: 0,
         selected: true,
         text,
+        source: file,
+        sourceName: file.name,
       });
     }
 
