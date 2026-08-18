@@ -45,7 +45,7 @@ export type ConversionStage = "split" | "ocr" | "export";
 
 export const CONVERSION_STAGES: { id: ConversionStage; label: string }[] = [
   { id: "split", label: "Stage 1/3: Parsing document layout and table grids..." },
-  { id: "ocr", label: "Stage 2/3: Applying multi-language deep OCR models..." },
+  { id: "ocr", label: "Stage 2/3: Applying multi-language cloud Vision OCR models..." },
   { id: "export", label: "Stage 3/3: Reconstructing native Microsoft Word text fields..." },
 ];
 
@@ -119,6 +119,10 @@ export async function submitPdfToWordConversion(
       handlers.onProgress?.(progress);
     },
     payload.ocr_enabled ? languagePackCodes(payload.language_pack) : undefined,
+    {
+      enabled: payload.ocr_enabled && payload.preserve_layout,
+      languagePack: payload.language_pack,
+    },
   );
   handlers.onStage?.("export");
 
