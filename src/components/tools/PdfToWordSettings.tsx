@@ -74,27 +74,43 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       return;
     }
     setBusy(true);
+    setStage("split");
+    const payload = buildPdfToWordPayload({
+      items: state.items,
+      baseName: pageName,
+      format: ocrEnabled ? "docx" : format,
+      margins,
+      ocrEnabled,
+      ocrLanguage,
+    });
     try {
-      const { blob, filename } = await convertPdfPagesToWord(
-        state.items,
-        pageName,
-        format,
-        margins,
-        mode,
-        setProgress,
-      );
+      const result = await submitPdfToWordConversion(state.items, payload, {
+        onStage: setStage,
+        onProgress: setProgress,
+      });
 
       if (state.converted) URL.revokeObjectURL(state.converted.url);
       setPdfState(pageId, {
-        converted: { url: URL.createObjectURL(blob), size: blob.size, filename },
+        converted: {
+          url: result.download_url,
+          size: result.size,
+          filename: result.filename,
+        },
       });
+      toast.success(
+        payload.ocr_enabled
+          ? `OCR complete — ${result.filename} is ready to download.`
+          : `Converted — ${result.filename} is ready to download.`,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Conversion failed.");
     } finally {
       setProgress(null);
+      setStage(null);
       setBusy(false);
     }
   };
+
 
   if (state.converted) {
     return (
