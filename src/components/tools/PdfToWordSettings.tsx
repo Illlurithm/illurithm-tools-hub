@@ -67,9 +67,7 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const selected = state.items.filter((i) => i.selected);
 
   useEffect(() => {
-    const saved = getBackendUrl();
-    setBackendUrlState(saved);
-    if (saved) setEngine("remote");
+    setBackendUrlState(getBackendUrl());
   }, []);
 
   const onFiles = async (files: File[]) => {
