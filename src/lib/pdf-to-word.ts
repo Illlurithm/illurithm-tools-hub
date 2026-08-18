@@ -1,6 +1,8 @@
 import { rotateDataUrl } from "./pdf-to-png";
 import type { PdfPageItem } from "./pdf-to-png-store";
 import { buildEditableLayouts } from "./pdf-ocr";
+import { buildVisionPages } from "./vision-pipeline";
+import { buildVisionDocx } from "./docx-vision";
 import type { OcrProgress } from "./document-layout";
 
 export type { OcrProgress } from "./document-layout";
@@ -181,8 +183,20 @@ export async function convertPdfPagesToWord(
   onProgress?: (progress: OcrProgress) => void,
   /** Tesseract language code, e.g. "eng". Defaults to the bundled language set. */
   language?: string,
+  /** Cloud Vision layout reconstruction (borderless table grids + image extraction). */
+  vision?: { enabled: boolean; languagePack: string },
 ): Promise<{ blob: Blob; filename: string }> {
   const name = (baseName || "untitled").replace(/\.(docx?|pdf)$/i, "");
+
+  if (mode === "ocr" && vision?.enabled) {
+    if (format === "doc") {
+      throw new Error(
+        "Layout-accurate OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode scripts, and page geometry.",
+      );
+    }
+    const pages = await buildVisionPages(items, vision.languagePack, onProgress);
+    return { blob: await buildVisionDocx(pages), filename: `${name}.docx` };
+  }
 
   if (mode === "ocr") {
     if (format === "doc") {
