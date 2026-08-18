@@ -25,8 +25,6 @@ export const DEFAULT_WORD_MARGINS: WordMargins = { top: 96, bottom: 96, left: 96
 const PAGE_W = 816;
 const PAGE_H = 1056;
 const PX_TO_TWIP = 15;
-/** Page images are rendered at 2x (144 dpi): 1 image px = 0.5 pt = 10 twips. */
-const IMG_PX_TO_TWIP = 10;
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const base64 = dataUrl.split(",")[1] ?? "";
@@ -135,7 +133,9 @@ export async function convertPdfPagesToWord(
 
   if (mode === "ocr") {
     if (format === "doc") {
-      throw new Error("Editable OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode, and page geometry reliably.");
+      throw new Error(
+        "Editable OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode, and page geometry reliably.",
+      );
     }
     return {
       blob: await buildEditableDocx(items, onProgress, language),
@@ -146,7 +146,6 @@ export async function convertPdfPagesToWord(
   const pages = await renderSelected(items, margins);
 
   if (format === "doc") {
-
     const body = pages
       .map(
         (p, i) =>
