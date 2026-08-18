@@ -14,10 +14,11 @@ import {
   buildPdfToWordPayload,
   submitPdfToWordConversion,
   type ConversionStage,
+  type LanguagePack,
   type OcrLanguage,
 } from "@/lib/pdf-to-word-request";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
-import { OcrOptions } from "@/components/tools/OcrOptions";
+import { AdvancedConversionControls } from "@/components/tools/AdvancedConversionControls";
 import { ConversionSteps } from "@/components/tools/ConversionSteps";
 
 import {
@@ -43,7 +44,9 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const [busy, setBusy] = useState(false);
   const [format, setFormat] = useState<WordFormat>("docx");
   const [ocrEnabled, setOcrEnabled] = useState(false);
-  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("en");
+  const [ocrLanguage] = useState<OcrLanguage>("en");
+  const [preserveLayout, setPreserveLayout] = useState(true);
+  const [languagePack, setLanguagePack] = useState<LanguagePack>("en");
   const [, setProgress] = useState<OcrProgress | null>(null);
   const [stage, setStage] = useState<ConversionStage | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
@@ -81,6 +84,8 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       format: ocrEnabled ? "docx" : format,
       margins,
       ocrEnabled,
+      preserveLayout,
+      languagePack,
       ocrLanguage,
     });
     try {
@@ -141,11 +146,13 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         </button>
       </FileSourceMenu>
 
-      <OcrOptions
-        enabled={ocrEnabled}
-        onEnabledChange={setOcrEnabled}
-        language={ocrLanguage}
-        onLanguageChange={setOcrLanguage}
+      <AdvancedConversionControls
+        ocrEnabled={ocrEnabled}
+        onOcrEnabledChange={setOcrEnabled}
+        preserveLayout={preserveLayout}
+        onPreserveLayoutChange={setPreserveLayout}
+        languagePack={languagePack}
+        onLanguagePackChange={setLanguagePack}
       />
 
       <DropdownMenu>
