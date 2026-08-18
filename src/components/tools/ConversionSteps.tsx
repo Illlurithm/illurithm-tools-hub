@@ -6,7 +6,7 @@ export function ConversionSteps({ stage }: { stage: ConversionStage }) {
   const activeIndex = CONVERSION_STAGES.findIndex((s) => s.id === stage);
 
   return (
-    <ol className="flex w-full flex-wrap items-center gap-3 text-[11px]">
+    <ol className="flex w-full flex-col gap-2 text-[11px]">
       {CONVERSION_STAGES.map((step, index) => {
         const done = index < activeIndex;
         const active = index === activeIndex;
@@ -30,7 +30,7 @@ export function ConversionSteps({ stage }: { stage: ConversionStage }) {
               )}
             </span>
             <span className={active || done ? "text-foreground" : "text-muted-foreground/70"}>
-              {index + 1}. {step.label}
+              {step.label}
             </span>
           </li>
         );

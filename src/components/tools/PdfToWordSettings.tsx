@@ -12,6 +12,7 @@ import {
 } from "@/lib/pdf-to-word";
 import {
   buildPdfToWordPayload,
+  CONVERSION_STAGES,
   submitPdfToWordConversion,
   type ConversionStage,
   type LanguagePack,
@@ -119,12 +120,14 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
 
   if (state.converted) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card px-6 py-4 text-center [color-scheme:light_dark]">
         <FileDown className="h-6 w-6 text-primary" />
-        <p className="text-sm font-semibold text-foreground">
+        <p className="text-sm font-semibold leading-snug tracking-normal text-card-foreground">
           To download the converted PDF to WORD file
         </p>
-        <p className="text-sm text-muted-foreground">Go to Share → Click Download.</p>
+        <p className="text-sm font-medium leading-snug text-muted-foreground">
+          Go to Share → Click Download.
+        </p>
         <button
           type="button"
           onClick={() => setPdfState(pageId, { converted: null })}
@@ -215,9 +218,11 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             <span>
-              {ocrEnabled
-                ? "Performing Optical Character Recognition (OCR)... Please wait."
-                : "Converting"}
+              {stage
+                ? (CONVERSION_STAGES.find((s) => s.id === stage)?.label ?? "Converting")
+                : ocrEnabled
+                  ? "Starting deep OCR pipeline... Please wait."
+                  : "Converting"}
             </span>
           </>
         ) : (
