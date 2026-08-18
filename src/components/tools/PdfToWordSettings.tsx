@@ -5,15 +5,20 @@ import { toast } from "sonner";
 import { setPdfState, updatePdfItems, usePdfState } from "@/lib/pdf-to-png-store";
 import { readPdfFiles } from "@/lib/pdf-to-png";
 import {
-  convertPdfPagesToWord,
   DEFAULT_WORD_MARGINS,
-  type OcrMode,
   type OcrProgress,
   type WordFormat,
   type WordMargins,
 } from "@/lib/pdf-to-word";
+import {
+  buildPdfToWordPayload,
+  submitPdfToWordConversion,
+  type ConversionStage,
+  type OcrLanguage,
+} from "@/lib/pdf-to-word-request";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
-import { OcrModeSelect } from "@/components/tools/OcrModeSelect";
+import { OcrOptions } from "@/components/tools/OcrOptions";
+import { ConversionSteps } from "@/components/tools/ConversionSteps";
 
 import {
   DropdownMenu,
@@ -37,11 +42,14 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const state = usePdfState(pageId);
   const [busy, setBusy] = useState(false);
   const [format, setFormat] = useState<WordFormat>("docx");
-  const [mode, setMode] = useState<OcrMode>("image");
+  const [ocrEnabled, setOcrEnabled] = useState(false);
+  const [ocrLanguage, setOcrLanguage] = useState<OcrLanguage>("en");
   const [, setProgress] = useState<OcrProgress | null>(null);
+  const [stage, setStage] = useState<ConversionStage | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
   const [marginKey, setMarginKey] = useState<MarginKey | null>(null);
   const selected = state.items.filter((i) => i.selected);
+
 
 
   const onFiles = async (files: File[]) => {
@@ -66,27 +74,43 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       return;
     }
     setBusy(true);
+    setStage("split");
+    const payload = buildPdfToWordPayload({
+      items: state.items,
+      baseName: pageName,
+      format: ocrEnabled ? "docx" : format,
+      margins,
+      ocrEnabled,
+      ocrLanguage,
+    });
     try {
-      const { blob, filename } = await convertPdfPagesToWord(
-        state.items,
-        pageName,
-        format,
-        margins,
-        mode,
-        setProgress,
-      );
+      const result = await submitPdfToWordConversion(state.items, payload, {
+        onStage: setStage,
+        onProgress: setProgress,
+      });
 
       if (state.converted) URL.revokeObjectURL(state.converted.url);
       setPdfState(pageId, {
-        converted: { url: URL.createObjectURL(blob), size: blob.size, filename },
+        converted: {
+          url: result.download_url,
+          size: result.size,
+          filename: result.filename,
+        },
       });
+      toast.success(
+        payload.ocr_enabled
+          ? `OCR complete — ${result.filename} is ready to download.`
+          : `Converted — ${result.filename} is ready to download.`,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Conversion failed.");
     } finally {
       setProgress(null);
+      setStage(null);
       setBusy(false);
     }
   };
+
 
   if (state.converted) {
     return (
@@ -117,18 +141,23 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         </button>
       </FileSourceMenu>
 
-      <OcrModeSelect value={mode} onChange={setMode} target="Word" />
-
+      <OcrOptions
+        enabled={ocrEnabled}
+        onEnabledChange={setOcrEnabled}
+        language={ocrLanguage}
+        onLanguageChange={setOcrLanguage}
+      />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" className={triggerClass}>
-            <span>Word Format: {format.toUpperCase()}</span>
+            <span>Word Format: {(ocrEnabled ? "docx" : format).toUpperCase()}</span>
             <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {FORMATS.filter((f) => mode !== "ocr" || f === "docx").map((f) => (
+          {FORMATS.filter((f) => !ocrEnabled || f === "docx").map((f) => (
+
             <DropdownMenuItem key={f} onClick={() => setFormat(f)}>
               {f.toUpperCase()}
             </DropdownMenuItem>
@@ -178,12 +207,23 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         {busy ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>Converting</span>
+            <span>
+              {ocrEnabled
+                ? "Performing Optical Character Recognition (OCR)... Please wait."
+                : "Converting"}
+            </span>
           </>
         ) : (
           "Convert"
         )}
       </button>
+
+      {stage ? (
+        <div className="w-full pt-1">
+          <ConversionSteps stage={stage} />
+        </div>
+      ) : null}
+
 
 
       <span className="ml-auto self-center text-xs text-muted-foreground/70">

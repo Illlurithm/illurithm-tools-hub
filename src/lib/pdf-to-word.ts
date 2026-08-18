@@ -63,8 +63,13 @@ async function renderSelected(items: PdfPageItem[], margins: WordMargins) {
   );
 }
 
-async function buildEditableDocx(items: PdfPageItem[], onProgress?: (progress: OcrProgress) => void) {
-  const pages = await buildEditableLayouts(items, onProgress);
+async function buildEditableDocx(
+  items: PdfPageItem[],
+  onProgress?: (progress: OcrProgress) => void,
+  language?: string,
+) {
+  const pages = await buildEditableLayouts(items, onProgress, language);
+
   const {
     Document,
     Packer,
@@ -174,6 +179,8 @@ export async function convertPdfPagesToWord(
   margins: WordMargins,
   mode: OcrMode = "image",
   onProgress?: (progress: OcrProgress) => void,
+  /** Tesseract language code, e.g. "eng". Defaults to the bundled language set. */
+  language?: string,
 ): Promise<{ blob: Blob; filename: string }> {
   const name = (baseName || "untitled").replace(/\.(docx?|pdf)$/i, "");
 
@@ -181,12 +188,16 @@ export async function convertPdfPagesToWord(
     if (format === "doc") {
       throw new Error("Editable OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode, and page geometry reliably.");
     }
-    return { blob: await buildEditableDocx(items, onProgress), filename: `${name}.docx` };
+    return {
+      blob: await buildEditableDocx(items, onProgress, language),
+      filename: `${name}.docx`,
+    };
   }
 
   const pages = await renderSelected(items, margins);
 
   if (format === "doc") {
+
     const body = pages
       .map(
         (p, i) =>
