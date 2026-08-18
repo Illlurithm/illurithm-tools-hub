@@ -52,9 +52,12 @@ async function tesseractText(
   page: number,
   total: number,
   onProgress?: ProgressHandler,
+  language?: string,
 ): Promise<LayoutText[]> {
   const { createWorker, PSM } = await import("tesseract.js");
-  const worker = await createWorker(["eng", "hin", "mar"], undefined, {
+  const languages = language ? [language] : ["eng", "hin", "mar"];
+  const worker = await createWorker(languages, undefined, {
+
     logger: (message) =>
       onProgress?.({
         page,
