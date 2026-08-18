@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ChevronDown, Cloud, FileDown, Loader2, Upload } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, FileDown, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { setPdfState, updatePdfItems, usePdfState } from "@/lib/pdf-to-png-store";
@@ -18,14 +18,6 @@ import {
   type LanguagePack,
   type OcrLanguage,
 } from "@/lib/pdf-to-word-request";
-import {
-  BACKEND_STATUS,
-  convertPdfViaBackend,
-  downloadBlob,
-  getBackendUrl,
-  setBackendUrl,
-} from "@/lib/pdf-word-backend";
-import { CONVERTAPI_STATUS, convertPdfViaConvertApi } from "@/lib/convertapi-client";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
 import { AdvancedConversionControls } from "@/components/tools/AdvancedConversionControls";
 import { ConversionSteps } from "@/components/tools/ConversionSteps";
@@ -58,17 +50,10 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const [languagePack, setLanguagePack] = useState<LanguagePack>("en");
   const [, setProgress] = useState<OcrProgress | null>(null);
   const [stage, setStage] = useState<ConversionStage | null>(null);
+  const [stageDetail, setStageDetail] = useState<string | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
   const [marginKey, setMarginKey] = useState<MarginKey | null>(null);
-  const [engine, setEngine] = useState<"cloud" | "browser" | "remote">("cloud");
-  const [backendUrl, setBackendUrlState] = useState("");
-  const [editingUrl, setEditingUrl] = useState(false);
-  const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
   const selected = state.items.filter((i) => i.selected);
-
-  useEffect(() => {
-    setBackendUrlState(getBackendUrl());
-  }, []);
 
   const onFiles = async (files: File[]) => {
     setBusy(true);
@@ -103,47 +88,11 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       ocrLanguage,
     });
     try {
-      if (engine === "cloud") {
-        const source = selected.find((item) => item.source)?.source;
-        const sourceName = selected.find((item) => item.sourceName)?.sourceName;
-        if (!source) {
-          toast.error("Re-upload the PDF to send it to the cloud conversion engine.");
-          return;
-        }
-        const pageRange = state.items
-          .map((item, index) => (item.selected ? index + 1 : 0))
-          .filter((n) => n > 0)
-          .join(",");
-        setRemoteStatus(CONVERTAPI_STATUS);
-        const cloud = await convertPdfViaConvertApi(source, sourceName ?? `${pageName}.pdf`, {
-          preserveLayout,
-          ocrEnabled,
-          languagePack,
-          ...(pageRange ? { pageRange } : {}),
-        });
-        downloadBlob(cloud.blob, cloud.filename);
-        toast.success(`Converted — ${cloud.filename} downloaded.`);
-        return;
-      }
-
-      if (engine === "remote") {
-        const source = selected.find((item) => item.source)?.source;
-        const sourceName = selected.find((item) => item.sourceName)?.sourceName;
-        if (!source) {
-          toast.error("Re-upload the PDF to send it to the conversion service.");
-          return;
-        }
-        setRemoteStatus(BACKEND_STATUS);
-        const remote = await convertPdfViaBackend(source, sourceName ?? `${pageName}.pdf`, payload);
-        downloadBlob(remote.blob, remote.filename);
-        toast.success(`Converted — ${remote.filename} downloaded.`);
-        return;
-      }
-
       setStage("split");
       const result = await submitPdfToWordConversion(state.items, payload, {
         onStage: setStage,
         onProgress: setProgress,
+        onDetail: setStageDetail,
       });
 
       if (state.converted) URL.revokeObjectURL(state.converted.url);
@@ -154,9 +103,10 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
           filename: result.filename,
         },
       });
+      for (const warning of result.quality?.warnings ?? []) toast.warning(warning);
       toast.success(
         payload.ocr_enabled
-          ? `OCR complete — ${result.filename} is ready to download.`
+          ? `Document reconstructed — ${result.filename} is ready to download.`
           : `Converted — ${result.filename} is ready to download.`,
       );
     } catch (e) {
@@ -164,7 +114,7 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
     } finally {
       setProgress(null);
       setStage(null);
-      setRemoteStatus(null);
+      setStageDetail(null);
       setBusy(false);
     }
   };
@@ -208,59 +158,6 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         languagePack={languagePack}
         onLanguagePackChange={setLanguagePack}
       />
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" className={triggerClass}>
-            <Cloud className="h-4 w-4" />
-            <span>
-              Engine:{" "}
-              {engine === "cloud" ? "Cloud (best quality)" : engine === "remote" ? "Microservice" : "In-browser"}
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => setEngine("cloud")}>
-            Cloud engine (best quality)
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setEngine("browser")}>
-            In-browser engine
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setEngine("remote")}>
-            Microservice (FastAPI + Docling)
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setEditingUrl(true)}>
-            Set service URL...
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {editingUrl ? (
-        <div className="flex items-center gap-2">
-          <input
-            value={backendUrl}
-            onChange={(e) => setBackendUrlState(e.target.value)}
-            placeholder="https://your-microservice-url/convert"
-            aria-label="Conversion service URL"
-            className="h-9 w-72 rounded-full border border-border bg-transparent px-4 text-xs text-foreground outline-none transition-all duration-200 placeholder:text-muted-foreground/60 focus:border-primary/60 focus:shadow-[0_0_16px_var(--primary)]"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setBackendUrl(backendUrl);
-              setEditingUrl(false);
-              if (backendUrl.trim()) setEngine("remote");
-              toast.success(
-                backendUrl.trim() ? "Conversion service saved." : "Service URL cleared.",
-              );
-            }}
-            className={triggerClass}
-          >
-            Save
-          </button>
-        </div>
-      ) : null}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -321,12 +218,12 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             <span>
-              {remoteStatus
-                ? remoteStatus
+              {stageDetail
+                ? stageDetail
                 : stage
                   ? (CONVERSION_STAGES.find((s) => s.id === stage)?.label ?? "Converting")
                   : ocrEnabled
-                    ? "Starting deep OCR pipeline... Please wait."
+                    ? "Starting document intelligence pipeline... Please wait."
                     : "Converting"}
             </span>
           </>
