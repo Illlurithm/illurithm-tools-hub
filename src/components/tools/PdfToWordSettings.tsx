@@ -25,6 +25,7 @@ import {
   getBackendUrl,
   setBackendUrl,
 } from "@/lib/pdf-word-backend";
+import { CONVERTAPI_STATUS, convertPdfViaConvertApi } from "@/lib/convertapi-client";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
 import { AdvancedConversionControls } from "@/components/tools/AdvancedConversionControls";
 import { ConversionSteps } from "@/components/tools/ConversionSteps";
@@ -59,16 +60,14 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const [stage, setStage] = useState<ConversionStage | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
   const [marginKey, setMarginKey] = useState<MarginKey | null>(null);
-  const [engine, setEngine] = useState<"browser" | "remote">("browser");
+  const [engine, setEngine] = useState<"cloud" | "browser" | "remote">("cloud");
   const [backendUrl, setBackendUrlState] = useState("");
   const [editingUrl, setEditingUrl] = useState(false);
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
   const selected = state.items.filter((i) => i.selected);
 
   useEffect(() => {
-    const saved = getBackendUrl();
-    setBackendUrlState(saved);
-    if (saved) setEngine("remote");
+    setBackendUrlState(getBackendUrl());
   }, []);
 
   const onFiles = async (files: File[]) => {
@@ -104,6 +103,29 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       ocrLanguage,
     });
     try {
+      if (engine === "cloud") {
+        const source = selected.find((item) => item.source)?.source;
+        const sourceName = selected.find((item) => item.sourceName)?.sourceName;
+        if (!source) {
+          toast.error("Re-upload the PDF to send it to the cloud conversion engine.");
+          return;
+        }
+        const pageRange = state.items
+          .map((item, index) => (item.selected ? index + 1 : 0))
+          .filter((n) => n > 0)
+          .join(",");
+        setRemoteStatus(CONVERTAPI_STATUS);
+        const cloud = await convertPdfViaConvertApi(source, sourceName ?? `${pageName}.pdf`, {
+          preserveLayout,
+          ocrEnabled,
+          languagePack,
+          ...(pageRange ? { pageRange } : {}),
+        });
+        downloadBlob(cloud.blob, cloud.filename);
+        toast.success(`Converted — ${cloud.filename} downloaded.`);
+        return;
+      }
+
       if (engine === "remote") {
         const source = selected.find((item) => item.source)?.source;
         const sourceName = selected.find((item) => item.sourceName)?.sourceName;
@@ -191,11 +213,17 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         <DropdownMenuTrigger asChild>
           <button type="button" className={triggerClass}>
             <Cloud className="h-4 w-4" />
-            <span>Engine: {engine === "remote" ? "Microservice" : "In-browser"}</span>
+            <span>
+              Engine:{" "}
+              {engine === "cloud" ? "Cloud (best quality)" : engine === "remote" ? "Microservice" : "In-browser"}
+            </span>
             <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={() => setEngine("cloud")}>
+            Cloud engine (best quality)
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setEngine("browser")}>
             In-browser engine
           </DropdownMenuItem>
