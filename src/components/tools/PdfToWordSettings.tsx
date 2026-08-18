@@ -207,12 +207,23 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         {busy ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>Converting</span>
+            <span>
+              {ocrEnabled
+                ? "Performing Optical Character Recognition (OCR)... Please wait."
+                : "Converting"}
+            </span>
           </>
         ) : (
           "Convert"
         )}
       </button>
+
+      {stage ? (
+        <div className="w-full pt-1">
+          <ConversionSteps stage={stage} />
+        </div>
+      ) : null}
+
 
 
       <span className="ml-auto self-center text-xs text-muted-foreground/70">
