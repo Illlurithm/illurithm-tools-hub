@@ -213,11 +213,17 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
         <DropdownMenuTrigger asChild>
           <button type="button" className={triggerClass}>
             <Cloud className="h-4 w-4" />
-            <span>Engine: {engine === "remote" ? "Microservice" : "In-browser"}</span>
+            <span>
+              Engine:{" "}
+              {engine === "cloud" ? "Cloud (best quality)" : engine === "remote" ? "Microservice" : "In-browser"}
+            </span>
             <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={() => setEngine("cloud")}>
+            Cloud engine (best quality)
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setEngine("browser")}>
             In-browser engine
           </DropdownMenuItem>
