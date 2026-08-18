@@ -21,8 +21,6 @@ export type ConvertApiOutput = {
   cost: number;
 };
 
-const ENDPOINT = "https://v2.convertapi.com/convert/pdf/to/docx";
-
 export const convertPdfToDocxViaConvertApi = createServerFn({ method: "POST" })
   .inputValidator((input: ConvertApiInput) => {
     if (!input?.file_base64) throw new Error("No PDF data was received.");
@@ -52,7 +50,7 @@ export const convertPdfToDocxViaConvertApi = createServerFn({ method: "POST" })
       ],
     };
 
-    const response = await fetch(ENDPOINT, {
+    const response = await fetch("https://v2.convertapi.com/convert/pdf/to/docx", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${secret}`,
