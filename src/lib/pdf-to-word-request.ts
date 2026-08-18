@@ -67,10 +67,12 @@ export type PdfToWordPayload = {
 export type PdfToWordResult = {
   ok: true;
   filename: string;
-  /** Object URL (or, later, a remote URL) for the generated document. */
+  /** Object URL for the generated document. */
   download_url: string;
   size: number;
   payload: PdfToWordPayload;
+  /** Quality report produced by the document intelligence validator. */
+  quality?: QualityReport;
 };
 
 export function buildPdfToWordPayload(input: {
@@ -95,9 +97,23 @@ export function buildPdfToWordPayload(input: {
   };
 }
 
+/** Maps engine job states onto the three stages shown by the UI stepper. */
+const STAGE_FOR_STATE: Record<string, ConversionStage> = {
+  queued: "split",
+  analyzing: "split",
+  extracting: "split",
+  ocr: "ocr",
+  layout_analysis: "ocr",
+  structure_analysis: "ocr",
+  reconstructing: "export",
+  generating_docx: "export",
+  validating: "export",
+  completed: "export",
+};
+
 /**
- * Mock API handler: runs the conversion locally and returns a response shaped
- * like the future worker endpoint. Swap the body for `fetch("/api/...")` later.
+ * Entry point used by the UI. Runs the modular Document Intelligence engine for
+ * DOCX output, and the legacy page-image writer for the DOC / image-only path.
  */
 export async function submitPdfToWordConversion(
   items: PdfPageItem[],
@@ -105,23 +121,58 @@ export async function submitPdfToWordConversion(
   handlers: {
     onStage?: (stage: ConversionStage) => void;
     onProgress?: (progress: OcrProgress) => void;
+    onDetail?: (detail: string | null) => void;
   } = {},
 ): Promise<PdfToWordResult> {
   handlers.onStage?.("split");
+
+  if (payload.format === "docx") {
+    const { runDocumentIntelligence } = await import("./docintel/engine");
+    const result = await runDocumentIntelligence({
+      items,
+      baseName: payload.file_name.replace(/\.(docx?|pdf)$/i, "") || "untitled",
+      options: {
+        ocrEnabled: payload.ocr_enabled,
+        preserveLayout: payload.preserve_layout,
+        languagePack: payload.language_pack,
+        ...(payload.ocr_language
+          ? { ocrLanguage: OCR_LANGUAGE_CODES[payload.ocr_language] }
+          : {}),
+      },
+      onProgress: (job) => {
+        const stage = STAGE_FOR_STATE[job.state];
+        if (stage) handlers.onStage?.(stage);
+        handlers.onDetail?.(job.detail ? `${job.label} — ${job.detail}` : job.label);
+        if (job.page && job.totalPages) {
+          handlers.onProgress?.({
+            page: job.page,
+            total: job.totalPages,
+            status: job.detail ?? job.label,
+            progress: job.progress,
+          });
+        }
+      },
+    });
+
+    return {
+      ok: true,
+      filename: result.filename,
+      download_url: URL.createObjectURL(result.blob),
+      size: result.blob.size,
+      payload,
+      quality: result.report,
+    };
+  }
+
   const { blob, filename } = await convertPdfPagesToWord(
     items,
     payload.file_name,
     payload.format,
     payload.margins,
-    payload.ocr_enabled ? "ocr" : "image",
+    "image",
     (progress) => {
-      handlers.onStage?.(payload.ocr_enabled ? "ocr" : "export");
+      handlers.onStage?.("export");
       handlers.onProgress?.(progress);
-    },
-    payload.ocr_enabled ? languagePackCodes(payload.language_pack) : undefined,
-    {
-      enabled: payload.ocr_enabled && payload.preserve_layout,
-      languagePack: payload.language_pack,
     },
   );
   handlers.onStage?.("export");
