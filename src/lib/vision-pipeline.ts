@@ -73,7 +73,12 @@ export async function buildVisionPages(
     onProgress?.({ page, total: selected.length, status: "Reading page layout", progress: 0.15 });
     const rotated = await rotateDataUrl(item.dataUrl, item.rotation);
     const image = await forVision(rotated.dataUrl);
-    onProgress?.({ page, total: selected.length, status: "Cloud OCR (multi-language)", progress: 0.45 });
+    onProgress?.({
+      page,
+      total: selected.length,
+      status: "Cloud OCR (multi-language)",
+      progress: 0.45,
+    });
 
     const result = await analyzePageLayout({ data: { image, languages } });
 
@@ -104,6 +109,9 @@ export async function buildVisionPages(
         bold: raw.bold,
         align: raw.align,
         script,
+        ...(raw.bg_color ? { bg_color: raw.bg_color } : {}),
+        ...(raw.text_color ? { text_color: raw.text_color } : {}),
+        ...(raw.bordered ? { bordered: true } : {}),
       });
     }
 

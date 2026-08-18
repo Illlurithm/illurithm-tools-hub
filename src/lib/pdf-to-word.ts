@@ -25,8 +25,6 @@ export const DEFAULT_WORD_MARGINS: WordMargins = { top: 96, bottom: 96, left: 96
 const PAGE_W = 816;
 const PAGE_H = 1056;
 const PX_TO_TWIP = 15;
-/** Page images are rendered at 2x (144 dpi): 1 image px = 0.5 pt = 10 twips. */
-const IMG_PX_TO_TWIP = 10;
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
   const base64 = dataUrl.split(",")[1] ?? "";
@@ -72,105 +70,40 @@ async function buildEditableDocx(
 ) {
   const pages = await buildEditableLayouts(items, onProgress, language);
 
-  const {
-    Document,
-    Packer,
-    Paragraph,
-    TextRun,
-    FrameAnchorType,
-    BorderStyle,
-    SectionType,
-  } = await import("docx");
-
-  const sections = pages.map((page) => {
-    const children = page.texts.map(
-      (line) =>
-        new Paragraph({
-          frame: {
-            type: "absolute",
-            position: {
-              x: Math.round(line.x * IMG_PX_TO_TWIP),
-              y: Math.round(line.y * IMG_PX_TO_TWIP),
-            },
-             width: Math.round((line.width + line.height * 0.35) * 1.18 * IMG_PX_TO_TWIP),
-             height: Math.round(line.height * 1.35 * IMG_PX_TO_TWIP),
-            anchor: { horizontal: FrameAnchorType.PAGE, vertical: FrameAnchorType.PAGE },
-          },
-          // Exact single-line spacing: frames never grow taller than the source
-          // line, which is what used to push text over the row below it.
-          spacing: {
-            before: 0,
-            after: 0,
-            line: Math.round(line.height * 1.15 * IMG_PX_TO_TWIP),
-            lineRule: "exact",
-          },
-          children: [
-            new TextRun({
-              text: line.text,
-              font: line.font,
-              bold: line.bold,
-              italics: line.italic,
-              size: Math.max(8, Math.round(line.fontSize * 2)),
-            }),
-          ],
-        }),
-    );
-
-    for (const rule of page.rules) {
-      const horizontal = rule.width >= rule.height;
-      if (!horizontal) continue;
-      children.push(
-        new Paragraph({
-          frame: {
-            type: "absolute",
-            position: {
-              x: Math.round(rule.x * IMG_PX_TO_TWIP),
-              y: Math.round(rule.y * IMG_PX_TO_TWIP),
-            },
-            width: Math.round(rule.width * IMG_PX_TO_TWIP),
-            height: 20,
-            anchor: { horizontal: FrameAnchorType.PAGE, vertical: FrameAnchorType.PAGE },
-          },
-          border: {
-            bottom: { style: BorderStyle.SINGLE, size: 2, color: rule.color, space: 0 },
-          },
-          spacing: { before: 0, after: 0, line: 20, lineRule: "exact" },
-          children: [],
-        }),
-      );
-    }
-
-    if (page.texts.length === 0) {
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `(${page.name}: no selectable text found — try NO OCR for scanned pages)`,
-              italics: true,
-              size: 22,
-            }),
-          ],
-        }),
-      );
-    }
-
-    return {
-      properties: {
-        type: SectionType.NEXT_PAGE,
-        page: {
-          size: {
-            width: Math.round(page.width * IMG_PX_TO_TWIP),
-            height: Math.round(page.height * IMG_PX_TO_TWIP),
-          },
-          margin: { top: 0, bottom: 0, left: 0, right: 0, header: 0, footer: 0 },
-        },
-      },
-      children,
-    };
-  });
-
-  const doc = new Document({ sections });
-  return Packer.toBlob(doc);
+  // Native responsive Word tables (100% page width) instead of absolutely
+  // positioned text frames: no overlap, no single-letter vertical wrapping.
+  return buildVisionDocx(
+    pages.map((page) => ({
+      name: page.name,
+      width: page.width,
+      height: page.height,
+      pageImage: "",
+      blocks: page.texts.map((line) => ({
+        type: "text" as const,
+        x: line.x / page.width,
+        y: line.y / page.height,
+        w: Math.min(1, line.width / page.width),
+        h: Math.min(1, line.height / page.height),
+        text: line.text,
+        font_size_pt: Math.max(5, line.fontSize),
+        bold: line.bold,
+        align: "left" as const,
+        script: /[\u0900-\u097F]/.test(line.text)
+          ? /[A-Za-z]/.test(line.text)
+            ? ("mixed" as const)
+            : ("devanagari" as const)
+          : ("latin" as const),
+      })),
+      rules: page.rules
+        .filter((rule) => rule.width >= rule.height)
+        .map((rule) => ({
+          x: rule.x / page.width,
+          y: (rule.y + rule.height) / page.height,
+          w: Math.min(1, rule.width / page.width),
+          orientation: "horizontal" as const,
+        })),
+    })),
+  );
 }
 
 /** Renders the selected PDF pages into a Word document (.docx via OOXML, .doc via Word HTML). */
@@ -200,7 +133,9 @@ export async function convertPdfPagesToWord(
 
   if (mode === "ocr") {
     if (format === "doc") {
-      throw new Error("Editable OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode, and page geometry reliably.");
+      throw new Error(
+        "Editable OCR requires DOCX. Legacy DOC cannot preserve tables, Unicode, and page geometry reliably.",
+      );
     }
     return {
       blob: await buildEditableDocx(items, onProgress, language),
@@ -211,7 +146,6 @@ export async function convertPdfPagesToWord(
   const pages = await renderSelected(items, margins);
 
   if (format === "doc") {
-
     const body = pages
       .map(
         (p, i) =>
