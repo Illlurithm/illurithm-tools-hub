@@ -103,6 +103,29 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
       ocrLanguage,
     });
     try {
+      if (engine === "cloud") {
+        const source = selected.find((item) => item.source)?.source;
+        const sourceName = selected.find((item) => item.sourceName)?.sourceName;
+        if (!source) {
+          toast.error("Re-upload the PDF to send it to the cloud conversion engine.");
+          return;
+        }
+        const pageRange = state.items
+          .map((item, index) => (item.selected ? index + 1 : 0))
+          .filter((n) => n > 0)
+          .join(",");
+        setRemoteStatus(CONVERTAPI_STATUS);
+        const cloud = await convertPdfViaConvertApi(source, sourceName ?? `${pageName}.pdf`, {
+          preserveLayout,
+          ocrEnabled,
+          languagePack,
+          ...(pageRange ? { pageRange } : {}),
+        });
+        downloadBlob(cloud.blob, cloud.filename);
+        toast.success(`Converted — ${cloud.filename} downloaded.`);
+        return;
+      }
+
       if (engine === "remote") {
         const source = selected.find((item) => item.source)?.source;
         const sourceName = selected.find((item) => item.sourceName)?.sourceName;
