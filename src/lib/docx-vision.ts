@@ -9,37 +9,49 @@ import {
 
 /** Page images are rendered at 2x (144 dpi): 1 image px = 0.5 pt = 10 twips. */
 const IMG_PX_TO_TWIP = 10;
-const MIN_CELL_TWIP = 60;
+/** Percentage widths keep tables responsive; 4% is the floor that stops
+ *  single-letter vertical wrapping inside narrow cells. */
+const MIN_CELL_PCT = 4;
 
-type Cell = { block: VisionBlock | null; width: number };
+type Cell = { block: VisionBlock | null; pct: number };
 
-function splitRow(row: VisionBlock[], contentWidth: number): Cell[] {
+/** Splits a visual row into responsive percentage-width cells (sum = 100%). */
+function splitRow(row: VisionBlock[]): Cell[] {
   const cells: Cell[] = [];
   let cursor = 0;
 
   for (const block of row) {
     const start = Math.max(cursor, block.x);
-    const gap = Math.round((start - cursor) * contentWidth);
-    if (gap >= MIN_CELL_TWIP) cells.push({ block: null, width: gap });
-    const width = Math.max(MIN_CELL_TWIP, Math.round(block.w * contentWidth));
-    cells.push({ block, width });
+    const gapPct = (start - cursor) * 100;
+    if (gapPct >= MIN_CELL_PCT) cells.push({ block: null, pct: gapPct });
+    cells.push({ block, pct: Math.max(MIN_CELL_PCT, block.w * 100) });
     cursor = start + block.w;
   }
 
-  const used = cells.reduce((sum, cell) => sum + cell.width, 0);
-  if (used < contentWidth - MIN_CELL_TWIP) {
-    cells.push({ block: null, width: contentWidth - used });
-  } else if (used > contentWidth) {
-    // Scale down proportionally so the row never overflows the page width.
-    const scale = contentWidth / used;
-    for (const cell of cells) cell.width = Math.max(MIN_CELL_TWIP, Math.floor(cell.width * scale));
+  const trailing = (1 - cursor) * 100;
+  if (trailing >= MIN_CELL_PCT) cells.push({ block: null, pct: trailing });
+
+  // Normalize so every row fills exactly 100% of the page width.
+  const total = cells.reduce((sum, cell) => sum + cell.pct, 0) || 1;
+  for (const cell of cells) cell.pct = Math.max(MIN_CELL_PCT, (cell.pct / total) * 100);
+  const scaled = cells.reduce((sum, cell) => sum + cell.pct, 0);
+  if (cells.length > 0 && scaled !== 100) {
+    const last = cells[cells.length - 1]!;
+    last.pct = Math.max(MIN_CELL_PCT, last.pct + (100 - scaled));
   }
   return cells;
 }
 
+const hex = (value?: string) => {
+  const match = /^#?([0-9a-f]{6})$/i.exec((value ?? "").trim());
+  return match ? match[1]!.toUpperCase() : null;
+};
+
 /**
- * Renders Vision OCR pages into a fully editable .docx built from borderless
- * table grids (never absolute floating frames), so text can not overlap.
+ * Renders Vision OCR pages into a fully editable .docx built from native,
+ * responsive (100% page width) Word tables — never absolute floating frames —
+ * with cell shading, bordered form grids, spanned section headers and
+ * UTF-8-safe Devanagari/Latin font pairing.
  */
 export async function buildVisionDocx(pages: VisionPageWithImage[]) {
   const {
@@ -57,11 +69,11 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
     AlignmentType,
     VerticalAlign,
     SectionType,
-    HeightRule,
+    ShadingType,
   } = await import("docx");
 
   const NONE = { style: BorderStyle.NONE, size: 0, color: "auto" } as const;
-  const LINE = { style: BorderStyle.SINGLE, size: 4, color: "9A9A9A" } as const;
+  const LINE = { style: BorderStyle.SINGLE, size: 4, color: "8A8A8A" } as const;
   const alignMap: Record<VisionAlign, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
     left: AlignmentType.LEFT,
     center: AlignmentType.CENTER,
@@ -77,50 +89,36 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
     const contentWidth = pageWidth - margin * 2;
 
     const rows = groupRows(page.blocks);
+    const layouts = rows.map((row) => ({ row, cells: splitRow(row) }));
+    const columnCount = Math.max(1, ...layouts.map((entry) => entry.cells.length));
     const tableRows = [];
-    let previousBottom = 0;
 
-    for (const row of rows) {
-      const top = Math.min(...row.map((b) => b.y));
+    for (const { row, cells } of layouts) {
       const bottom = Math.max(...row.map((b) => b.y + b.h));
-
-      const gap = top - previousBottom;
-      if (gap > 0.008) {
-        tableRows.push(
-          new TableRow({
-            height: { value: Math.round(gap * pageHeight), rule: HeightRule.EXACT },
-            children: [
-              new TableCell({
-                width: { size: contentWidth, type: WidthType.DXA },
-                borders: { top: NONE, bottom: NONE, left: NONE, right: NONE },
-                children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [] })],
-              }),
-            ],
-          }),
-        );
-      }
-      previousBottom = bottom;
-
       const ruled = page.rules.some(
         (rule) => rule.orientation === "horizontal" && Math.abs(rule.y - bottom) < 0.012,
       );
 
-      const cells = splitRow(row, contentWidth);
       const children = [];
-
       for (const cell of cells) {
-        const borders = {
-          top: NONE,
-          bottom: ruled ? LINE : NONE,
-          left: NONE,
-          right: NONE,
-        };
         const block = cell.block;
+        const fill = block && block.type === "text" ? hex(block.bg_color) : null;
+        const bordered = Boolean(block && block.type === "text" && block.bordered) || Boolean(fill);
+        const borders = bordered
+          ? { top: LINE, bottom: LINE, left: LINE, right: LINE }
+          : { top: NONE, bottom: ruled ? LINE : NONE, left: NONE, right: NONE };
+
+        // A lone wide cell spans the full grid (colspan) so section headers and
+        // key/value pairs keep their original width.
+        const columnSpan = cells.length === 1 ? columnCount : undefined;
+        const width = { size: cell.pct, type: WidthType.PERCENTAGE } as const;
+        const shading = fill ? { fill, type: ShadingType.CLEAR, color: "auto" } : undefined;
 
         if (!block) {
           children.push(
             new TableCell({
-              width: { size: cell.width, type: WidthType.DXA },
+              width,
+              columnSpan,
               borders,
               children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [] })],
             }),
@@ -130,11 +128,12 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
 
         if (block.type === "image") {
           const crop = await cropRegion(page.pageImage, block);
-          const widthPx = Math.max(12, Math.round(cell.width / 15));
-          const heightPx = Math.max(12, Math.round((crop.height / crop.width) * widthPx));
+          const widthPx = Math.max(16, Math.round((cell.pct / 100) * contentWidth) / 15);
+          const heightPx = Math.max(16, Math.round((crop.height / crop.width) * widthPx));
           children.push(
             new TableCell({
-              width: { size: cell.width, type: WidthType.DXA },
+              width,
+              columnSpan,
               borders,
               verticalAlign: VerticalAlign.CENTER,
               children: [
@@ -145,7 +144,7 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
                     new ImageRun({
                       type: "png",
                       data: crop.dataUrl.split(",")[1] ?? "",
-                      transformation: { width: widthPx, height: heightPx },
+                      transformation: { width: Math.round(widthPx), height: Math.round(heightPx) },
                       altText: { title: block.label, description: block.label, name: block.label },
                     }),
                   ],
@@ -156,12 +155,15 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
           continue;
         }
 
+        const color = hex(block.text_color) ?? (fill ? "FFFFFF" : undefined);
         children.push(
           new TableCell({
-            width: { size: cell.width, type: WidthType.DXA },
+            width,
+            columnSpan,
             borders,
+            shading,
             verticalAlign: VerticalAlign.CENTER,
-            margins: { top: 0, bottom: 0, left: 30, right: 30 },
+            margins: { top: 20, bottom: 20, left: 60, right: 60 },
             children: [
               new Paragraph({
                 alignment: alignMap[block.align] ?? AlignmentType.LEFT,
@@ -170,6 +172,7 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
                   new TextRun({
                     text: block.text,
                     bold: block.bold,
+                    color,
                     size: Math.round(block.font_size_pt * 2),
                     font:
                       block.script === "latin"
@@ -183,23 +186,15 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
         );
       }
 
-      tableRows.push(
-        new TableRow({
-          height: {
-            value: Math.max(120, Math.round((bottom - top) * pageHeight)),
-            rule: HeightRule.ATLEAST,
-          },
-          children,
-        }),
-      );
+      tableRows.push(new TableRow({ cantSplit: true, children }));
     }
 
     const body =
       tableRows.length > 0
         ? [
             new Table({
-              layout: TableLayoutType.FIXED,
-              width: { size: contentWidth, type: WidthType.DXA },
+              layout: TableLayoutType.AUTOFIT,
+              width: { size: 100, type: WidthType.PERCENTAGE },
               borders: {
                 top: NONE,
                 bottom: NONE,
