@@ -60,7 +60,7 @@ export function PdfToWordSettings({ pageId, pageName }: { pageId: string; pageNa
   const [stage, setStage] = useState<ConversionStage | null>(null);
   const [margins, setMargins] = useState<WordMargins>(DEFAULT_WORD_MARGINS);
   const [marginKey, setMarginKey] = useState<MarginKey | null>(null);
-  const [engine, setEngine] = useState<"browser" | "remote">("browser");
+  const [engine, setEngine] = useState<"cloud" | "browser" | "remote">("cloud");
   const [backendUrl, setBackendUrlState] = useState("");
   const [editingUrl, setEditingUrl] = useState(false);
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
