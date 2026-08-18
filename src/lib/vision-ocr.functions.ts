@@ -1,6 +1,35 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+const blockSchema = z.object({
+  type: z.enum(["text", "image"]).default("text"),
+  x: z.coerce.number().default(0),
+  y: z.coerce.number().default(0),
+  w: z.coerce.number().default(0),
+  h: z.coerce.number().default(0),
+  text: z.string().default(""),
+  font_size_pt: z.coerce.number().default(10),
+  bold: z.coerce.boolean().default(false),
+  align: z.enum(["left", "center", "right"]).default("left"),
+  script: z.enum(["latin", "devanagari", "mixed"]).default("latin"),
+  label: z.string().default("other"),
+});
+
+const ruleSchema = z.object({
+  x: z.coerce.number().default(0),
+  y: z.coerce.number().default(0),
+  w: z.coerce.number().default(0),
+  orientation: z.enum(["horizontal", "vertical"]).default("horizontal"),
+});
+
+const resultSchema = z.object({
+  blocks: z.array(blockSchema).default([]),
+  rules: z.array(ruleSchema).default([]),
+});
+
+export type VisionBlockPayload = z.infer<typeof blockSchema>;
+export type VisionRulePayload = z.infer<typeof ruleSchema>;
+
 const schema = z.object({
   /** Page image as a data URL (png/jpeg). */
   image: z.string().min(32),
@@ -89,9 +118,6 @@ export const analyzePageLayout = createServerFn({ method: "POST" })
       choices?: { message?: { content?: string } }[];
     };
     const content = json.choices?.[0]?.message?.content ?? "";
-    const parsed = parseJson(content) as {
-      blocks?: unknown[];
-      rules?: unknown[];
-    };
-    return { blocks: parsed.blocks ?? [], rules: parsed.rules ?? [] };
+    const parsed = resultSchema.parse(parseJson(content));
+    return parsed;
   });
