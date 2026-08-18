@@ -110,15 +110,15 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
 
         // A lone wide cell spans the full grid (colspan) so section headers and
         // key/value pairs keep their original width.
-        const columnSpan = cells.length === 1 ? columnCount : undefined;
+        const span = cells.length === 1 ? { columnSpan: columnCount } : {};
         const width = { size: cell.pct, type: WidthType.PERCENTAGE } as const;
-        const shading = fill ? { fill, type: ShadingType.CLEAR, color: "auto" } : undefined;
+        const shading = fill ? { shading: { fill, type: ShadingType.CLEAR, color: "auto" } } : {};
 
         if (!block) {
           children.push(
             new TableCell({
               width,
-              columnSpan,
+              ...span,
               borders,
               children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [] })],
             }),
@@ -133,7 +133,7 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
           children.push(
             new TableCell({
               width,
-              columnSpan,
+              ...span,
               borders,
               verticalAlign: VerticalAlign.CENTER,
               children: [
@@ -155,13 +155,14 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
           continue;
         }
 
-        const color = hex(block.text_color) ?? (fill ? "FFFFFF" : undefined);
+        const textHex = hex(block.text_color) ?? (fill ? "FFFFFF" : null);
+        const color = textHex ? { color: textHex } : {};
         children.push(
           new TableCell({
             width,
-            columnSpan,
+            ...span,
             borders,
-            shading,
+            ...shading,
             verticalAlign: VerticalAlign.CENTER,
             margins: { top: 20, bottom: 20, left: 60, right: 60 },
             children: [
@@ -172,7 +173,7 @@ export async function buildVisionDocx(pages: VisionPageWithImage[]) {
                   new TextRun({
                     text: block.text,
                     bold: block.bold,
-                    color,
+                    ...color,
                     size: Math.round(block.font_size_pt * 2),
                     font:
                       block.script === "latin"
