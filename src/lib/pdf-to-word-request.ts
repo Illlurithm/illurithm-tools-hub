@@ -24,13 +24,29 @@ export const OCR_LANGUAGE_CODES: Record<OcrLanguage, string> = {
   de: "deu",
 };
 
+/** "Language Optimization Pack" options for Deep OCR processing. */
+export const LANGUAGE_PACKS = [
+  { value: "en", label: "English Only (Standard)", codes: "eng" },
+  {
+    value: "en_hi_mr",
+    label: "Bilingual: English + Hindi/Marathi (Devanagari script)",
+    codes: "eng+hin+mar",
+  },
+  { value: "en_es", label: "Bilingual: English + Spanish", codes: "eng+spa" },
+] as const;
+
+export type LanguagePack = (typeof LANGUAGE_PACKS)[number]["value"];
+
+export const languagePackCodes = (pack: LanguagePack) =>
+  LANGUAGE_PACKS.find((p) => p.value === pack)?.codes ?? "eng";
+
 /** Stages surfaced by the UI progress indicator. */
 export type ConversionStage = "split" | "ocr" | "export";
 
 export const CONVERSION_STAGES: { id: ConversionStage; label: string }[] = [
-  { id: "split", label: "Splitting pages" },
-  { id: "ocr", label: "Scanning text via OCR" },
-  { id: "export", label: "Exporting to editable Word document" },
+  { id: "split", label: "Stage 1/3: Parsing document layout and table grids..." },
+  { id: "ocr", label: "Stage 2/3: Applying multi-language deep OCR models..." },
+  { id: "export", label: "Stage 3/3: Reconstructing native Microsoft Word text fields..." },
 ];
 
 /**
@@ -43,6 +59,8 @@ export type PdfToWordPayload = {
   format: WordFormat;
   margins: WordMargins;
   ocr_enabled: boolean;
+  preserve_layout: boolean;
+  language_pack: LanguagePack;
   ocr_language?: OcrLanguage;
 };
 
@@ -61,6 +79,8 @@ export function buildPdfToWordPayload(input: {
   format: WordFormat;
   margins: WordMargins;
   ocrEnabled: boolean;
+  preserveLayout: boolean;
+  languagePack: LanguagePack;
   ocrLanguage?: OcrLanguage;
 }): PdfToWordPayload {
   return {
@@ -69,6 +89,8 @@ export function buildPdfToWordPayload(input: {
     format: input.format,
     margins: input.margins,
     ocr_enabled: input.ocrEnabled,
+    preserve_layout: input.preserveLayout,
+    language_pack: input.languagePack,
     ...(input.ocrEnabled && input.ocrLanguage ? { ocr_language: input.ocrLanguage } : {}),
   };
 }
@@ -96,7 +118,7 @@ export async function submitPdfToWordConversion(
       handlers.onStage?.(payload.ocr_enabled ? "ocr" : "export");
       handlers.onProgress?.(progress);
     },
-    payload.ocr_language ? OCR_LANGUAGE_CODES[payload.ocr_language] : undefined,
+    payload.ocr_enabled ? languagePackCodes(payload.language_pack) : undefined,
   );
   handlers.onStage?.("export");
 
