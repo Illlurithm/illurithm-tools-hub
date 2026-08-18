@@ -25,6 +25,7 @@ import {
   getBackendUrl,
   setBackendUrl,
 } from "@/lib/pdf-word-backend";
+import { CONVERTAPI_STATUS, convertPdfViaConvertApi } from "@/lib/convertapi-client";
 import { FileSourceMenu } from "@/components/tools/FileSourceMenu";
 import { AdvancedConversionControls } from "@/components/tools/AdvancedConversionControls";
 import { ConversionSteps } from "@/components/tools/ConversionSteps";
