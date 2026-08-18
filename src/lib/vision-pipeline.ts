@@ -104,6 +104,9 @@ export async function buildVisionPages(
         bold: raw.bold,
         align: raw.align,
         script,
+        ...(raw.bg_color ? { bg_color: raw.bg_color } : {}),
+        ...(raw.text_color ? { text_color: raw.text_color } : {}),
+        ...(raw.bordered ? { bordered: true } : {}),
       });
     }
 
