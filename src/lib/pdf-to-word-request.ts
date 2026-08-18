@@ -1,4 +1,5 @@
 import type { PdfPageItem } from "./pdf-to-png-store";
+import type { QualityReport } from "./docintel/stages/validate";
 import {
   convertPdfPagesToWord,
   type OcrProgress,
