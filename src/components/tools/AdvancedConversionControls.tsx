@@ -11,7 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function AdvancedConversionControls({
   ocrEnabled,
@@ -82,6 +87,7 @@ export function AdvancedConversionControls({
               >
                 Preserve Complex Tables &amp; Form Layouts
               </label>
+              <TooltipProvider delayDuration={100}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
@@ -97,6 +103,7 @@ export function AdvancedConversionControls({
                   inside the Word file.
                 </TooltipContent>
               </Tooltip>
+              </TooltipProvider>
             </div>
 
             <div className="space-y-1.5">
