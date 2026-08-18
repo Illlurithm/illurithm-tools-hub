@@ -175,6 +175,7 @@ async function detectRules(dataUrl: string): Promise<LayoutRule[]> {
 export async function buildEditableLayouts(
   items: PdfPageItem[],
   onProgress?: ProgressHandler,
+  language?: string,
 ): Promise<DocumentPageLayout[]> {
   const selected = items.filter((item) => item.selected);
   if (selected.length === 0) throw new Error("Select at least one page first.");
@@ -188,7 +189,8 @@ export async function buildEditableLayouts(
     const useNative = nativeTextIsReliable(item);
     const texts = useNative
       ? nativeText(item)
-      : await tesseractText(rotated.dataUrl, pageNumber, selected.length, onProgress);
+      : await tesseractText(rotated.dataUrl, pageNumber, selected.length, onProgress, language);
+
     const rules = await detectRules(rotated.dataUrl);
     const combined = texts.map((text) => text.text).join(" ");
     layouts.push({
