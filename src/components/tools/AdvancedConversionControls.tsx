@@ -61,10 +61,11 @@ export function AdvancedConversionControls({
             />
             <label htmlFor="deep-ocr" className="cursor-pointer">
               <span className="block text-xs font-semibold text-foreground">
-                Enable Deep OCR Processing
+                Enable Deep OCR Processing (Cloud Vision)
               </span>
               <span className="block text-[11px] text-muted-foreground">
-                Required for scanned documents, images, or non-selectable text
+                Required for scanned documents, images, or non-selectable text — reads English,
+                Hindi and Marathi (Devanagari) accurately
               </span>
             </label>
           </div>
@@ -100,7 +101,8 @@ export function AdvancedConversionControls({
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[260px] text-[11px] leading-relaxed">
                   Uses advanced layout models to reconstruct grids, boxes, and columns natively
-                  inside the Word file.
+                  inside the Word file as borderless tables, so text never overlaps. Photos,
+                  emblems, logos and QR codes are cropped into their original cells.
                 </TooltipContent>
               </Tooltip>
               </TooltipProvider>
