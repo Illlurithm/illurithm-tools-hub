@@ -10,6 +10,35 @@
  * fallbacks, quality reporting) can reason about it.
  */
 
+import type { PageGeometry } from "@/lib/pdf/coords";
+import type {
+  BackgroundAnalysis,
+  BlockCandidate,
+  ExtractedAnnotation,
+  ExtractedFormField,
+  ExtractedImage,
+  ExtractedLine,
+  ExtractedLink,
+  ExtractedVector,
+  ExtractedWord,
+  ExtractionIssue,
+  NativeTextQuality,
+  PageDensity,
+  Relationship,
+  TypographyStats,
+} from "@/lib/pdf/elements";
+import type { PageRoute } from "@/lib/pdf/quality";
+import type { PdfDocumentForensics, PdfTextFlags } from "@/lib/pdf-forensics";
+
+export type {
+  BackgroundAnalysis,
+  BlockCandidate,
+  ExtractedImage,
+  ExtractedLine,
+  ExtractedWord,
+  Relationship,
+};
+
 export type RegionType =
   | "title"
   | "heading"
