@@ -102,6 +102,41 @@ export type IrPage = {
   rules: IrRule[];
   /** Mean text confidence for the page (0..100). */
   confidence: number;
+
+  // ---- Forensic extraction layer (MASTER PROMPT 02) --------------------------
+  // All optional: renderers and older consumers keep working without them.
+
+  /** Normalized page geometry: boxes, rotation, scale, coordinate system. */
+  geometry?: PageGeometry;
+  /** Spatially reconstructed words (native or OCR), with source + confidence. */
+  words?: ExtractedWord[];
+  /** Lines reconstructed from the words. */
+  lines?: ExtractedLine[];
+  /** Physical block candidates (geometry only, no semantics yet). */
+  candidates?: BlockCandidate[];
+  /** Embedded raster images, with original bytes when extraction succeeded. */
+  images?: ExtractedImage[];
+  /** Vector primitives useful for table/form reconstruction. */
+  vectors?: ExtractedVector[];
+  annotations?: ExtractedAnnotation[];
+  links?: ExtractedLink[];
+  formFields?: ExtractedFormField[];
+  /** Per-page analysis metadata (quality, routing, density, typography). */
+  analysis?: PageAnalysisMeta;
+};
+
+/** Everything the analysis layer learned about a page, kept beside the content. */
+export type PageAnalysisMeta = {
+  quality: NativeTextQuality;
+  route: PageRoute;
+  density: PageDensity;
+  typography: TypographyStats;
+  background: BackgroundAnalysis;
+  textFlags?: PdfTextFlags;
+  fontUsage?: Record<string, number>;
+  hasTransparency?: boolean;
+  /** Non-fatal problems encountered while extracting this page. */
+  issues: ExtractionIssue[];
 };
 
 export type DocumentIR = {
@@ -111,9 +146,14 @@ export type DocumentIR = {
     createdAt: string;
     extractor: "native" | "ocr" | "vision" | "mixed";
     languagePack: string;
+    /** Document-level forensic record of the source PDF. */
+    source?: PdfDocumentForensics;
   };
   pages: IrPage[];
+  /** Flexible relationship graph (word→line, line→block, link→text, …). */
+  relationships?: Relationship[];
 };
+
 
 let counter = 0;
 export const nextBlockId = (prefix = "block") =>
