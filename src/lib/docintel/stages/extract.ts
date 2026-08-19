@@ -72,7 +72,7 @@ function irFromVisionBlocks(blocks: VisionBlock[], page: number): IrBlock[] {
   });
 }
 
-/** Native pdf.js text layer + local (tesseract) OCR fallback per page. */
+/** Native pdf.js text layer + local (tesseract) OCR fallback, decided per page. */
 async function extractWithoutVision(
   analysis: DocumentAnalysis,
   ctx: StageContext,
@@ -82,6 +82,8 @@ async function extractWithoutVision(
     analysis.pages.map((page) => page.item),
     onProgress,
     ctx.options.ocrLanguage,
+    // Page-level routing measured by the forensic stage.
+    (_item, index) => analysis.pages[index]?.nativeReliable ?? false,
   );
 
   return layouts.map((layout, index) => {
@@ -123,9 +125,11 @@ async function extractWithoutVision(
       confidence: blocks.length
         ? blocks.reduce((sum, block) => sum + block.confidence, 0) / blocks.length
         : 0,
+      extractedBy: layout.source === "native" ? ("native_pdf" as const) : ("ocr" as const),
     };
   });
 }
+
 
 /** Page raster only (no text understanding) — used when OCR is disabled. */
 async function extractRastersOnly(analysis: DocumentAnalysis): Promise<IrPage[]> {
