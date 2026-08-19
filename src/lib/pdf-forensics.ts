@@ -108,7 +108,7 @@ const pdfDate = (value: unknown) => {
 export async function inspectDocument(
   doc: {
     numPages: number;
-    getMetadata: () => Promise<{ info?: Record<string, unknown> }>;
+    getMetadata: () => Promise<{ info?: unknown }>;
     getPermissions?: () => Promise<number[] | null>;
   },
   file: { name: string; size: number },
@@ -123,7 +123,8 @@ export async function inspectDocument(
   };
 
   try {
-    const { info = {} } = await doc.getMetadata();
+    const meta = await doc.getMetadata();
+    const info = (meta.info ?? {}) as Record<string, unknown>;
     const str = (key: string) =>
       typeof info[key] === "string" && (info[key] as string).trim().length > 0
         ? (info[key] as string)
