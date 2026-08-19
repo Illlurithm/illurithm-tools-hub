@@ -15,6 +15,13 @@ import { languagePackCodes } from "@/lib/pdf-to-word-request";
 import type { OcrProgress } from "@/lib/document-layout";
 import type { VisionBlock } from "@/lib/vision-layout";
 import {
+  reconstructBlockCandidates,
+  reconstructLines,
+  reconstructWords,
+} from "@/lib/pdf/reconstruct";
+import { linkOcrDuplicates } from "@/lib/pdf/quality";
+import type { Relationship } from "@/lib/pdf/elements";
+import {
   clamp01,
   nextBlockId,
   normalizeBox,
