@@ -22,6 +22,7 @@ import type {
   ExtractedVector,
   ExtractedWord,
   ExtractionIssue,
+  ExtractionSource,
   NativeTextQuality,
   PageDensity,
   Relationship,
@@ -152,6 +153,8 @@ export type IrPage = {
   formFields?: ExtractedFormField[];
   /** Per-page analysis metadata (quality, routing, density, typography). */
   analysis?: PageAnalysisMeta;
+  /** Which extraction path produced the page blocks. */
+  extractedBy?: ExtractionSource;
 };
 
 /** Everything the analysis layer learned about a page, kept beside the content. */
