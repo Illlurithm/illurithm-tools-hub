@@ -13,7 +13,9 @@ import { EngineLogger } from "./logging";
 import { createContext, runStage, type EngineOptions } from "./pipeline";
 import type { JobProgress, ProgressReporter } from "./job";
 import { reportState } from "./job";
+import { forensicsStage } from "./stages/forensics";
 import { classifyStage } from "./stages/classify";
+import { captureDebugArtifacts } from "./debug";
 import { extractStage } from "./stages/extract";
 import { structureStage } from "./stages/structure";
 import { renderDocxStage } from "./stages/render-docx";
@@ -44,15 +46,19 @@ export async function runDocumentIntelligence(request: EngineRequest): Promise<E
   reportState(request.onProgress, "queued");
 
   try {
-    const analysis = await runStage(
-      classifyStage,
+    const forensics = await runStage(
+      forensicsStage,
       { items: request.items, fileName: request.baseName },
       ctx,
     );
+    const analysis = await runStage(classifyStage, forensics, ctx);
     const extracted = await runStage(extractStage, analysis, ctx);
     const structured = await runStage(structureStage, extracted, ctx);
     const rendered = await runStage(renderDocxStage, structured, ctx);
     const validated = await runStage(validateStage, rendered, ctx);
+
+    captureDebugArtifacts(validated.ir, logger);
+
 
     reportState(request.onProgress, "completed", { progress: 1 });
     return {

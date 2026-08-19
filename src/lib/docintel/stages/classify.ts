@@ -1,17 +1,25 @@
-/** PDFAnalyzer + DocumentClassifier: decides which extraction path a page needs. */
+/**
+ * DocumentClassifier: turns the forensic record into a per-page processing route.
+ *
+ * Classification is PAGE level: a hybrid PDF can mix native and scanned pages and
+ * each one is routed on its own measured native-text quality.
+ */
 
 import type { PdfPageItem } from "@/lib/pdf-to-png-store";
 import type { PageClass } from "../ir";
 import type { Stage, StageContext } from "../pipeline";
+import type { ForensicDocument, ForensicPage } from "./forensics";
 
 export type PageAnalysis = {
   item: PdfPageItem;
   index: number;
   classification: PageClass;
-  /** Ratio of correctly mapped native glyphs (0..1). */
+  /** Native text quality of the page (0..1), measured by the forensic stage. */
   nativeQuality: number;
   /** True when native text can be trusted without OCR. */
   nativeReliable: boolean;
+  /** Full forensic record of the page. */
+  forensic: ForensicPage;
 };
 
 export type DocumentAnalysis = {
@@ -19,43 +27,45 @@ export type DocumentAnalysis = {
   pages: PageAnalysis[];
   /** Document-level classification derived from the page mix. */
   documentClass: PageClass;
+  forensics: ForensicDocument;
 };
 
-export function analyzePage(item: PdfPageItem, index: number): PageAnalysis {
-  const spans = (item.text ?? []).filter((span) => span.str.trim().length > 0);
-  const mapped = spans.filter((span) => !span.unmapped);
-  const nativeQuality = spans.length === 0 ? 0 : mapped.length / spans.length;
-  const nativeReliable = spans.length > 0 && item.rotation === 0 && nativeQuality >= 0.96;
-
-  let classification: PageClass = "unknown";
-  if (spans.length === 0) classification = "scanned";
-  else if (nativeReliable) classification = "native";
-  else classification = "hybrid";
-
-  return { item, index, classification, nativeQuality, nativeReliable };
+/** Maps measured page facts onto the IR page class. */
+export function classifyPage(page: ForensicPage): PageClass {
+  const { density, quality, route } = page;
+  if (density.profile === "blank") return "unknown";
+  if (density.profile === "form_heavy" || density.profile === "table_heavy") return "table_heavy";
+  if (quality.wordCount === 0) return density.imageCount > 0 ? "scanned" : "unknown";
+  if (density.profile === "mostly_image") return "image_heavy";
+  if (route.route === "native") return "native";
+  if (route.route === "hybrid") return "hybrid";
+  return "scanned";
 }
 
-export const classifyStage: Stage<
-  { items: PdfPageItem[]; fileName: string },
-  DocumentAnalysis
-> = {
+export const classifyStage: Stage<ForensicDocument, DocumentAnalysis> = {
   name: "classifier",
   state: "analyzing",
-  async run({ items, fileName }, ctx: StageContext) {
-    const selected = items.filter((item) => item.selected);
-    if (selected.length === 0) throw new Error("Select at least one page first.");
+  async run(forensics, ctx: StageContext) {
+    const pages: PageAnalysis[] = forensics.pages.map((page) => ({
+      item: page.item,
+      index: page.index,
+      classification: classifyPage(page),
+      nativeQuality: page.quality.score,
+      nativeReliable: page.route.route === "native",
+      forensic: page,
+    }));
 
-    const pages = selected.map((item, index) => analyzePage(item, index));
-    const scanned = pages.filter((page) => page.classification !== "native").length;
+    const nonNative = pages.filter((page) => !page.nativeReliable).length;
     const documentClass: PageClass =
-      scanned === 0 ? "native" : scanned === pages.length ? "scanned" : "hybrid";
+      nonNative === 0 ? "native" : nonNative === pages.length ? "scanned" : "hybrid";
 
     ctx.logger.info("classifier", "document classified", {
       pages: pages.length,
       documentClass,
-      scannedPages: scanned,
+      pageRoutes: forensics.pages.map((page) => `${page.pageNumber}:${page.route.route}`).join(","),
+      nativeQuality: forensics.pages.map((page) => page.quality.score).join(","),
     });
 
-    return { fileName, pages, documentClass };
+    return { fileName: forensics.fileName, pages, documentClass, forensics };
   },
 };

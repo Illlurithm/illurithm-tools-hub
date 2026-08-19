@@ -59,6 +59,9 @@ async function pdfjs() {
   return lib;
 }
 
+/** Scale the page rasters are rendered at (2 px per PDF point = 144 dpi). */
+export const RENDER_SCALE = 2;
+
 /** Renders every page of every uploaded PDF into a selectable PNG page item. */
 export async function readPdfFiles(files: FileList | File[]): Promise<PdfPageItem[]> {
   const list = Array.from(files).filter(
@@ -67,44 +70,79 @@ export async function readPdfFiles(files: FileList | File[]): Promise<PdfPageIte
   if (list.length === 0) return [];
 
   const lib = await pdfjs();
+  const { inspectDocument, inspectPage, sampleTextColor } = await import("./pdf-forensics");
   const out: PdfPageItem[] = [];
 
   for (const file of list) {
     const data = new Uint8Array(await file.arrayBuffer());
     const doc = await lib.getDocument({ data }).promise;
     const base = file.name.replace(/\.pdf$/i, "");
+    const documentForensics = await inspectDocument(doc, { name: file.name, size: file.size });
+
     for (let n = 1; n <= doc.numPages; n += 1) {
       const page = await doc.getPage(n);
-      const viewport = page.getViewport({ scale: 2 });
+      const viewport = page.getViewport({ scale: RENDER_SCALE });
       const canvas = document.createElement("canvas");
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) throw new Error("Canvas unavailable");
       await page.render({ canvasContext: ctx, viewport }).promise;
+
+      // One raster snapshot per page, reused for colour probes (never re-rendered).
+      let raster: ImageData | undefined;
+      try {
+        raster = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch {
+        /* tainted or oversized canvas: colours stay unknown */
+      }
+
+      let forensics: Awaited<ReturnType<typeof inspectPage>> | undefined;
+      try {
+        forensics = await inspectPage(lib, page, viewport, {
+          pageNumber: n,
+          renderScale: RENDER_SCALE,
+        });
+      } catch {
+        /* forensic scan is best-effort; extraction still works without it */
+      }
+      const hiddenLayer = forensics?.textFlags.hiddenTextLayer ?? false;
 
       const text: PdfTextSpan[] = [];
       try {
         const content = await page.getTextContent();
-        const styles = (content.styles ?? {}) as Record<string, { fontFamily?: string }>;
+        const styles = (content.styles ?? {}) as Record<
+          string,
+          { fontFamily?: string; vertical?: boolean }
+        >;
         for (const raw of content.items as Array<Record<string, unknown>>) {
           const str = typeof raw["str"] === "string" ? (raw["str"] as string) : "";
           if (!str.trim()) continue;
-          const t = lib.Util.transform(viewport.transform, raw["transform"] as number[]);
-          const height = Math.hypot(t[2] ?? 0, t[3] ?? 0) || 12;
+          const transform = lib.Util.transform(viewport.transform, raw["transform"] as number[]);
+          const height = Math.hypot(transform[2] ?? 0, transform[3] ?? 0) || 12;
           const styleKey = typeof raw["fontName"] === "string" ? (raw["fontName"] as string) : "";
           const rawFamily = styles[styleKey]?.fontFamily ?? "";
           const nameHint = `${rawFamily} ${styleKey}`;
+          const dir = typeof raw["dir"] === "string" ? (raw["dir"] as string) : "ltr";
+          const box = {
+            x: transform[4] ?? 0,
+            y: (transform[5] ?? 0) - height,
+            width: Number(raw["width"] ?? 0) * RENDER_SCALE,
+            height,
+          };
+          const color = raster ? sampleTextColor(raster, box) : undefined;
           text.push({
             str,
-            x: t[4] ?? 0,
-            y: (t[5] ?? 0) - height,
-            width: Number(raw["width"] ?? 0) * 2,
-            height,
+            ...box,
             font: normalizeFontFamily(rawFamily),
+            fontName: styleKey,
             bold: /bold|black|heavy|semib/i.test(nameHint),
             italic: /italic|oblique/i.test(nameHint),
             unmapped: isUnmappedText(str),
+            transform,
+            direction: styles[styleKey]?.vertical ? "ttb" : dir === "rtl" ? "rtl" : "ltr",
+            ...(color ? { color } : {}),
+            visibility: hiddenLayer ? "hidden" : "visible",
           });
         }
       } catch {
@@ -122,6 +160,8 @@ export async function readPdfFiles(files: FileList | File[]): Promise<PdfPageIte
         text,
         source: file,
         sourceName: file.name,
+        ...(forensics ? { forensics } : {}),
+        documentForensics,
       });
     }
   }

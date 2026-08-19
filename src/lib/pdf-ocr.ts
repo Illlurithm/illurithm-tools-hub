@@ -176,6 +176,11 @@ export async function buildEditableLayouts(
   items: PdfPageItem[],
   onProgress?: ProgressHandler,
   language?: string,
+  /**
+   * Optional per-page routing decision from the forensic stage. When omitted the
+   * local native-quality heuristic is used, so other callers are unaffected.
+   */
+  useNativeForPage?: (item: PdfPageItem, index: number) => boolean,
 ): Promise<DocumentPageLayout[]> {
   const selected = items.filter((item) => item.selected);
   if (selected.length === 0) throw new Error("Select at least one page first.");
@@ -186,7 +191,9 @@ export async function buildEditableLayouts(
     const pageNumber = index + 1;
     const rotated = await rotateDataUrl(item.dataUrl, item.rotation);
     onProgress?.({ page: pageNumber, total: selected.length, status: "Analyzing page structure", progress: 0.05 });
-    const useNative = nativeTextIsReliable(item);
+    const useNative = useNativeForPage
+      ? useNativeForPage(item, index)
+      : nativeTextIsReliable(item);
     const texts = useNative
       ? nativeText(item)
       : await tesseractText(rotated.dataUrl, pageNumber, selected.length, onProgress, language);
