@@ -44,15 +44,19 @@ export async function runDocumentIntelligence(request: EngineRequest): Promise<E
   reportState(request.onProgress, "queued");
 
   try {
-    const analysis = await runStage(
-      classifyStage,
+    const forensics = await runStage(
+      forensicsStage,
       { items: request.items, fileName: request.baseName },
       ctx,
     );
+    const analysis = await runStage(classifyStage, forensics, ctx);
     const extracted = await runStage(extractStage, analysis, ctx);
     const structured = await runStage(structureStage, extracted, ctx);
     const rendered = await runStage(renderDocxStage, structured, ctx);
     const validated = await runStage(validateStage, rendered, ctx);
+
+    captureDebugArtifacts(validated.ir, logger);
+
 
     reportState(request.onProgress, "completed", { progress: 1 });
     return {

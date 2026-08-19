@@ -343,10 +343,17 @@ export const extractStage: Stage<DocumentAnalysis, DocumentIR> = {
             : "mixed";
     }
 
+    const relationships = attachForensicData(pages, analysis);
+
     ctx.logger.info("extractor", "extraction complete", {
       extractor,
       pages: pages.length,
       blocks: pages.reduce((sum, page) => sum + page.blocks.length, 0),
+      words: pages.reduce((sum, page) => sum + (page.words?.length ?? 0), 0),
+      lines: pages.reduce((sum, page) => sum + (page.lines?.length ?? 0), 0),
+      ocrPages: pages.filter((page) => page.extractedBy === "ocr").length,
+      nativePages: pages.filter((page) => page.extractedBy === "native_pdf").length,
+      relationships: relationships.length,
     });
 
     return {
@@ -358,8 +365,11 @@ export const extractStage: Stage<DocumentAnalysis, DocumentIR> = {
         languagePack: languagePackCodes(
           ctx.options.languagePack as Parameters<typeof languagePackCodes>[0],
         ),
+        ...(analysis.forensics.document ? { source: analysis.forensics.document } : {}),
       },
       pages,
+      relationships,
     };
   },
 };
+
