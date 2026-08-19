@@ -61,6 +61,8 @@ export type ExtractedWord = {
   confidence: number | null;
   /** True when another element carries the same text at the same place. */
   duplicateOf?: string;
+  /** True when the PDF font exposed no usable Unicode mapping for this text. */
+  unmapped?: boolean;
   /** Indexes of the raw spans this word was reconstructed from. */
   spans: number[];
 };
