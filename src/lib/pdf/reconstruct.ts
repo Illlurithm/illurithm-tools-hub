@@ -163,6 +163,8 @@ export function reconstructWords(
   spans.forEach((span, index) => indexOf.set(span, index));
 
   const words: ExtractedWord[] = [];
+  /** Pixel boxes are tracked outside the elements while words are still merging. */
+  const pxBoxes = new Map<string, Box>();
 
   for (const row of groupRows(usable)) {
     let previous: { word: ExtractedWord; right: number; font: FontInfo } | null = null;
@@ -187,12 +189,14 @@ export function reconstructWords(
           const word = previous.word;
           word.text += token.text;
           const right = Math.max(previous.right, token.x + token.width);
-          const box = word.__pxBox;
-          box.width = right - box.x;
-          box.height = Math.max(box.height, span.height);
-          box.y = Math.min(box.y, span.y);
+          const box = pxBoxes.get(word.id);
+          if (box) {
+            box.width = right - box.x;
+            box.height = Math.max(box.height, span.height);
+            box.y = Math.min(box.y, span.y);
+          }
           word.spans.push(spanIndex);
-          if (span.unmapped) word.__unmapped = true;
+          if (span.unmapped) word.unmapped = true;
           previous.right = right;
           return;
         }
@@ -203,12 +207,12 @@ export function reconstructWords(
           width: Math.max(1, token.width),
           height: Math.max(1, span.height),
         };
-        const word: ExtractedWord & { __pxBox: Box; __unmapped?: boolean } = {
+        const word: ExtractedWord = {
           id: nextElementId("w"),
           kind: "TEXT",
           page: options.page,
           text: token.text,
-          box: pxBox,
+          box: { ...pxBox },
           font,
           direction: detectDirection(token.text, span.direction),
           rotation,
@@ -217,10 +221,10 @@ export function reconstructWords(
           source: options.source,
           confidence: span.confidence ?? null,
           spans: [spanIndex],
-          __pxBox: pxBox,
-          ...(span.unmapped ? { __unmapped: true } : {}),
+          ...(span.unmapped ? { unmapped: true } : {}),
         };
         words.push(word);
+        pxBoxes.set(word.id, pxBox);
         previous = { word, right: pxBox.x + pxBox.width, font };
       });
     }
@@ -228,10 +232,12 @@ export function reconstructWords(
 
   // Normalize geometry once, after all merging is done.
   for (const word of words) {
-    const px = (word as ExtractedWord & { __pxBox: Box }).__pxBox;
-    word.box = imageBoxToNormalized(px, options.size);
+    const px = pxBoxes.get(word.id);
+    if (px) word.box = imageBoxToNormalized(px, options.size);
     word.text = word.text.replace(/\s+/g, " ").trim();
   }
+
+
 
   return words.filter((word) => word.text.length > 0);
 }
