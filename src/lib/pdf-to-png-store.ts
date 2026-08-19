@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import type { PdfDocumentForensics, PdfPageForensics } from "./pdf-forensics";
 
 /** One text run extracted from a PDF page, in page-image pixel coordinates. */
 export type PdfTextSpan = {
@@ -17,6 +18,18 @@ export type PdfTextSpan = {
    * of the page picture instead of being re-typed as garbled boxes.
    */
   unmapped?: boolean;
+  /** Raw PDF font name (may carry a `ABCDEF+` subset prefix). */
+  fontName?: string;
+  /** Writing direction reported by the parser. */
+  direction?: "ltr" | "rtl" | "ttb" | "btt";
+  /** Text matrix in image space, used to recover rotated text. */
+  transform?: number[];
+  /** Rotation of the run in degrees (0 for normal horizontal text). */
+  rotation?: number;
+  /** Text colour sampled from the rendered page raster. */
+  color?: string;
+  /** Whether the run is painted visibly (render mode 3/7 is invisible). */
+  visibility?: "visible" | "hidden" | "unknown";
 };
 
 export type PdfPageItem = {
@@ -33,6 +46,10 @@ export type PdfPageItem = {
   source?: Blob;
   /** Original PDF file name, e.g. "form.pdf". */
   sourceName?: string;
+  /** Forensic record of the source page (geometry, images, vectors, links…). */
+  forensics?: PdfPageForensics;
+  /** Forensic record of the source document this page came from. */
+  documentForensics?: PdfDocumentForensics;
 };
 
 export type PdfPageState = {
