@@ -304,9 +304,20 @@ export const extractStage: Stage<DocumentAnalysis, DocumentIR> = {
     let pages: IrPage[];
 
     if (!ctx.options.ocrEnabled) {
-      pages = await extractRastersOnly(analysis);
+      // OCR off must still mean "use the native text layer" — only a document
+      // with no readable text at all falls back to page rasters.
+      const native = await extractWithoutVision(analysis, ctx, onProgress, true);
+      const hasText = native.some((page) =>
+        page.blocks.some((block) => block.kind === "text" && block.text.trim().length > 0),
+      );
+      pages = hasText ? native : await extractRastersOnly(analysis);
       extractor = "native";
+      if (!hasText)
+        ctx.logger.info("extractor", "no native text layer; kept page rasters", {
+          pages: pages.length,
+        });
     } else if (ctx.options.preserveLayout) {
+
       ctx.setState("layout_analysis");
       pages = await withFallback(
         ctx,
