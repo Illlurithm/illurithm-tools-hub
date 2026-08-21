@@ -238,9 +238,14 @@ export function pageDensity(input: {
   const rules = input.vectors.filter((vector) => vector.shape === "line");
 
   let profile: PageDensity["profile"] = "mixed";
-  if (input.words.length === 0 && input.images.length === 0 && input.vectors.length === 0)
+  if (input.formFields.length > 3) profile = "form_heavy";
+  else if (
+    input.words.length === 0 &&
+    input.images.length === 0 &&
+    input.vectors.length === 0 &&
+    input.formFields.length === 0
+  )
     profile = "blank";
-  else if (input.formFields.length > 3) profile = "form_heavy";
   else if (rules.length >= 8 && input.words.length > 20) profile = "table_heavy";
   else if (textAreaRatio > imageAreaRatio * 2 && input.words.length > 20) profile = "mostly_text";
   else if (imageAreaRatio > 0.5 && input.words.length < 40) profile = "mostly_image";
