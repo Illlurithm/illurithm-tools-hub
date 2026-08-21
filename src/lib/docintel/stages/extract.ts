@@ -84,14 +84,17 @@ async function extractWithoutVision(
   analysis: DocumentAnalysis,
   ctx: StageContext,
   onProgress?: (progress: OcrProgress) => void,
+  /** When true no page may be routed to OCR (OCR disabled by the user). */
+  forceNative = false,
 ): Promise<IrPage[]> {
   const layouts = await buildEditableLayouts(
     analysis.pages.map((page) => page.item),
     onProgress,
     ctx.options.ocrLanguage,
     // Page-level routing measured by the forensic stage.
-    (_item, index) => analysis.pages[index]?.nativeReliable ?? false,
+    (_item, index) => forceNative || (analysis.pages[index]?.nativeReliable ?? false),
   );
+
 
   return layouts.map((layout, index) => {
     const source = analysis.pages[index];
@@ -301,9 +304,20 @@ export const extractStage: Stage<DocumentAnalysis, DocumentIR> = {
     let pages: IrPage[];
 
     if (!ctx.options.ocrEnabled) {
-      pages = await extractRastersOnly(analysis);
+      // OCR off must still mean "use the native text layer" — only a document
+      // with no readable text at all falls back to page rasters.
+      const native = await extractWithoutVision(analysis, ctx, onProgress, true);
+      const hasText = native.some((page) =>
+        page.blocks.some((block) => block.kind === "text" && block.text.trim().length > 0),
+      );
+      pages = hasText ? native : await extractRastersOnly(analysis);
       extractor = "native";
+      if (!hasText)
+        ctx.logger.info("extractor", "no native text layer; kept page rasters", {
+          pages: pages.length,
+        });
     } else if (ctx.options.preserveLayout) {
+
       ctx.setState("layout_analysis");
       pages = await withFallback(
         ctx,
