@@ -84,14 +84,17 @@ async function extractWithoutVision(
   analysis: DocumentAnalysis,
   ctx: StageContext,
   onProgress?: (progress: OcrProgress) => void,
+  /** When true no page may be routed to OCR (OCR disabled by the user). */
+  forceNative = false,
 ): Promise<IrPage[]> {
   const layouts = await buildEditableLayouts(
     analysis.pages.map((page) => page.item),
     onProgress,
     ctx.options.ocrLanguage,
     // Page-level routing measured by the forensic stage.
-    (_item, index) => analysis.pages[index]?.nativeReliable ?? false,
+    (_item, index) => forceNative || (analysis.pages[index]?.nativeReliable ?? false),
   );
+
 
   return layouts.map((layout, index) => {
     const source = analysis.pages[index];
